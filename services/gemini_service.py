@@ -65,7 +65,7 @@ async def ask_gemini(
             system_instruction=SYSTEM_PROMPT,
             response_mime_type="application/json",
             response_schema=LLMResponse,
-            temperature=0.1,
+            temperature=0.6,
         ),
     )
 
