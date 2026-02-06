@@ -34,34 +34,29 @@ async def ask_gemini(
     """
     Ask Gemini to interpret the message and return structured response
     with MongoDB operation if needed
-
-    Args:
-        message: Current user message
-        image_bytes: Optional image data
-        image_mime: Image MIME type
-        history: Chat history in format [{"role": "user", "message": "..."}, ...]
     """
-    # Build conversation history
+    # Build conversation with Content objects
     contents = []
 
     # Add history if provided
     if history:
         for msg in history:
             role = "user" if msg["role"] == "user" else "model"
-            contents.append({
-                "role": role,
-                "parts": [types.Part.from_text(text=msg["message"])]
-            })
+            contents.append(
+                types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=msg["message"])]
+                )
+            )
 
     # Add current message
-    current_parts: list = [types.Part.from_text(text=message)]
+    current_parts = [types.Part.from_text(text=message)]
     if image_bytes and image_mime:
         current_parts.append(types.Part.from_bytes(data=image_bytes, mime_type=image_mime))
 
-    contents.append({
-        "role": "user",
-        "parts": current_parts
-    })
+    contents.append(
+        types.Content(role="user", parts=current_parts)
+    )
 
     response = await gemini_client.aio.models.generate_content(
         model=GEMINI_MODEL,
@@ -78,5 +73,13 @@ async def ask_gemini(
     if response.parsed and isinstance(response.parsed, LLMResponse):
         return response.parsed
 
-    # Fallback: parsear manualmente
-    return LLMResponse.model_validate_json(response.text)
+    # Fallback: parsear manualmente si hay texto
+    try:
+        raw = response.text
+        if raw:
+            return LLMResponse.model_validate_json(raw)
+    except (TypeError, IndexError, AttributeError):
+        pass
+
+    # Último recurso: respuesta vacía
+    return LLMResponse(reply="No pude procesar tu mensaje. Intenta de nuevo.", operation=None)
