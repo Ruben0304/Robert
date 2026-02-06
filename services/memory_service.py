@@ -3,13 +3,13 @@ Memory service for storing and retrieving chat history
 """
 from datetime import datetime
 from typing import List, Dict
-from database.mongodb import db_client
+import database.mongodb as db
 from config.settings import MEMORY_DB_NAME, MEMORY_COLLECTION
 
 
 def get_memory_collection():
     """Get the memory collection"""
-    return db_client[MEMORY_DB_NAME][MEMORY_COLLECTION]
+    return db.db_client[MEMORY_DB_NAME][MEMORY_COLLECTION]
 
 
 async def save_message(session_id: str, role: str, message: str):
