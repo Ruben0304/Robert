@@ -66,27 +66,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     message_text = update.message.text
 
+    print(f"[BOT] Mensaje recibido de {user_id}: {message_text[:50]}")
+
     # Send typing indicator
     await update.message.chat.send_action("typing")
 
     try:
         # Get chat history
+        print(f"[BOT] Obteniendo historial...")
         history = await get_chat_history(user_id)
+        print(f"[BOT] Historial: {len(history)} mensajes")
 
         # Save user message
         await save_message(user_id, "user", message_text)
+        print(f"[BOT] Mensaje guardado")
 
         # Ask Gemini with history
+        print(f"[BOT] Llamando a Gemini...")
         llm = await ask_gemini(message_text, history=history)
+        print(f"[BOT] Respuesta de Gemini: {llm.reply[:80]}")
 
         # Execute MongoDB operation if needed
         data = None
         if llm.operation and llm.operation.action != ActionEnum.none:
+            print(f"[BOT] Ejecutando operación: {llm.operation.action}")
             try:
                 data = await execute_operation(llm.operation)
-                # If there's data, append a summary to the reply
                 if data:
-                    # Format data nicely for Telegram
                     if isinstance(data, list) and len(data) > 0:
                         llm.reply += f"\n\n📊 Encontré {len(data)} resultado(s)."
                     elif isinstance(data, dict):
@@ -97,6 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         elif "deleted" in data:
                             llm.reply += f"\n\n🗑️ Eliminados: {data['deleted']}"
             except Exception as e:
+                print(f"[BOT] Error MongoDB: {e}")
                 llm.reply += f"\n\n⚠️ Error en la operación: {str(e)}"
 
         # Save assistant reply
@@ -104,8 +111,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Send reply to user
         await update.message.reply_text(llm.reply)
+        print(f"[BOT] Respuesta enviada")
 
     except Exception as e:
+        import traceback
+        print(f"[BOT ERROR] {traceback.format_exc()}")
         error_message = f"Algo salió mal, hermano. Intenta de nuevo.\n\nError: {str(e)}"
         await update.message.reply_text(error_message)
 
