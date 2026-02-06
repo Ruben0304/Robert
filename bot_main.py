@@ -23,8 +23,9 @@ async def start():
     # --- Telegram Bot ---
     bot_app = create_bot_application()
     await bot_app.initialize()
-    # Delete any existing webhook and drop pending updates from previous instance
+    # Clear previous connections and wait for old instance to die
     await bot_app.bot.delete_webhook(drop_pending_updates=True)
+    await asyncio.sleep(5)
     await bot_app.start()
     await bot_app.updater.start_polling(drop_pending_updates=True)
     print("Robert Bot corriendo en Telegram...")
