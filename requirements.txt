@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+motor
+google-genai
+python-multipart
+python-dotenv
+python-telegram-bot>=21.0
+pydantic>=2.9.0
