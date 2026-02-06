@@ -1,6 +1,7 @@
 """
 Gemini LLM service for processing natural language queries
 """
+import json
 from google import genai
 from google.genai import types
 
@@ -58,28 +59,49 @@ async def ask_gemini(
         types.Content(role="user", parts=current_parts)
     )
 
-    response = await gemini_client.aio.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=LLMResponse,
-            temperature=0.6,
-        ),
-    )
+    try:
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=LLMResponse,
+                temperature=0.6,
+            ),
+        )
+    except Exception as e:
+        print(f"[GEMINI ERROR] API call failed: {e}")
+        return LLMResponse(reply=f"Error llamando a Gemini: {e}", operation=None)
 
-    # .parsed devuelve el objeto parseado según el schema
-    if response.parsed and isinstance(response.parsed, LLMResponse):
-        return response.parsed
+    # Try to parse the response
+    try:
+        if response.parsed and isinstance(response.parsed, LLMResponse):
+            return response.parsed
+    except Exception as e:
+        print(f"[GEMINI ERROR] response.parsed failed: {e}")
 
-    # Fallback: parsear manualmente si hay texto
+    # Fallback: try response.text
     try:
         raw = response.text
         if raw:
             return LLMResponse.model_validate_json(raw)
-    except (TypeError, IndexError, AttributeError):
-        pass
+    except Exception as e:
+        print(f"[GEMINI ERROR] response.text failed: {e}")
 
-    # Último recurso: respuesta vacía
+    # Last fallback: try candidates directly
+    try:
+        if response.candidates:
+            candidate = response.candidates[0]
+            if candidate.content and candidate.content.parts:
+                text = candidate.content.parts[0].text
+                if text:
+                    return LLMResponse.model_validate_json(text)
+            # Check if blocked
+            if candidate.finish_reason:
+                print(f"[GEMINI ERROR] finish_reason: {candidate.finish_reason}")
+    except Exception as e:
+        print(f"[GEMINI ERROR] candidates fallback failed: {e}")
+
+    print(f"[GEMINI ERROR] Full response object: {response}")
     return LLMResponse(reply="No pude procesar tu mensaje. Intenta de nuevo.", operation=None)
