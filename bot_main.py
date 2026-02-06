@@ -23,8 +23,10 @@ async def start():
     # --- Telegram Bot ---
     bot_app = create_bot_application()
     await bot_app.initialize()
+    # Delete any existing webhook and drop pending updates from previous instance
+    await bot_app.bot.delete_webhook(drop_pending_updates=True)
     await bot_app.start()
-    await bot_app.updater.start_polling()
+    await bot_app.updater.start_polling(drop_pending_updates=True)
     print("Robert Bot corriendo en Telegram...")
 
     # --- FastAPI server ---
