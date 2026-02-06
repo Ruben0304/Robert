@@ -6,10 +6,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from config.settings import TELEGRAM_BOT_TOKEN
-from services.gemini_service import ask_gemini
-from services.mongo_service import execute_operation
+from services.gemini_service import run_agent
 from services.memory_service import save_message, get_chat_history, clear_session_history
-from models.schemas import ActionEnum
 
 
 # ──────────────────────────── Bot Handlers ──────────────────────
@@ -81,30 +79,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await save_message(user_id, "user", message_text)
         print(f"[BOT] Mensaje guardado")
 
-        # Ask Gemini with history
-        print(f"[BOT] Llamando a Gemini...")
-        llm = await ask_gemini(message_text, history=history)
+        # Ask Gemini with agent loop
+        print(f"[BOT] Llamando a Gemini (agent loop)...")
+        llm, _steps = await run_agent(message_text, history=history)
         print(f"[BOT] Respuesta de Gemini: {llm.reply[:80]}")
-
-        # Execute MongoDB operation if needed
-        data = None
-        if llm.operation and llm.operation.action != ActionEnum.none:
-            print(f"[BOT] Ejecutando operación: {llm.operation.action}")
-            try:
-                data = await execute_operation(llm.operation)
-                if data:
-                    if isinstance(data, list) and len(data) > 0:
-                        llm.reply += f"\n\n📊 Encontré {len(data)} resultado(s)."
-                    elif isinstance(data, dict):
-                        if "count" in data:
-                            llm.reply += f"\n\n📊 Total: {data['count']}"
-                        elif "inserted_id" in data:
-                            llm.reply += f"\n\n✅ Guardado."
-                        elif "deleted" in data:
-                            llm.reply += f"\n\n🗑️ Eliminados: {data['deleted']}"
-            except Exception as e:
-                print(f"[BOT] Error MongoDB: {e}")
-                llm.reply += f"\n\n⚠️ Error en la operación: {str(e)}"
 
         # Save assistant reply
         await save_message(user_id, "assistant", llm.reply)
@@ -147,18 +125,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Save user message (text only, not image)
         await save_message(user_id, "user", f"[Imagen enviada] {caption}")
 
-        # Ask Gemini with image and history
-        llm = await ask_gemini(caption, bytes(photo_bytes), image_mime, history)
-
-        # Execute MongoDB operation if needed
-        if llm.operation and llm.operation.action != ActionEnum.none:
-            try:
-                data = await execute_operation(llm.operation)
-                if data:
-                    if isinstance(data, list) and len(data) > 0:
-                        llm.reply += f"\n\n📊 Encontré {len(data)} resultado(s)."
-            except Exception as e:
-                llm.reply += f"\n\n⚠️ Error: {str(e)}"
+        # Ask Gemini with image and history (agent loop)
+        llm, _steps = await run_agent(caption, bytes(photo_bytes), image_mime, history)
 
         # Save assistant reply
         await save_message(user_id, "assistant", llm.reply)

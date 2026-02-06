@@ -44,6 +44,9 @@ class LLMResponse(BaseModel):
     """Schema que Gemini DEBE devolver."""
 
     reply: str = Field(description="Texto de respuesta para el usuario")
+    is_final: bool = Field(
+        description="True cuando ya tienes suficiente información y la respuesta es final"
+    )
     operation: Optional[MongoOperation] = Field(
         default=None,
         description="Operación MongoDB, null si solo es conversación",

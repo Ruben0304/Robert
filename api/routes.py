@@ -1,11 +1,10 @@
 """
 API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form
 
-from models.schemas import ChatResponse, ActionEnum
-from services.gemini_service import ask_gemini
-from services.mongo_service import execute_operation
+from models.schemas import ChatResponse
+from services.gemini_service import run_agent
 from services.memory_service import save_message, get_chat_history, clear_session_history
 from database.mongodb import ping_db
 
@@ -42,18 +41,11 @@ async def chat(
     # Save user message to history (without image, only text)
     await save_message(session_id, "user", message)
 
-    # Ask Gemini with history
-    llm = await ask_gemini(message, image_bytes, image_mime, history)
+    # Ask Gemini with history (agent loop)
+    llm, steps = await run_agent(message, image_bytes, image_mime, history)
 
-    data = None
-    op_dict = None
-
-    if llm.operation and llm.operation.action != ActionEnum.none:
-        op_dict = llm.operation.model_dump(exclude_none=True)
-        try:
-            data = await execute_operation(llm.operation)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"MongoDB error: {e}")
+    data = {"steps": steps}
+    op_dict = llm.operation.model_dump(exclude_none=True) if llm.operation else None
 
     # Save assistant reply to history
     await save_message(session_id, "assistant", llm.reply)
